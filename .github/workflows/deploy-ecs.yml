@@ -116,7 +116,7 @@ jobs:
           : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY is required}"
           [[ "$DEPLOY_PATH" == '/var/www/ww/user-dashboard' ]]
           [[ "$APP_PORT" == '3100' ]]
-          [[ "$PUBLIC_URL" == "http://$DEPLOY_HOST/ww/user-dashboard/" ]]
+          [[ "$PUBLIC_URL" == "https://$DEPLOY_HOST/ww/user-dashboard/" ]]
           [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] && (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]

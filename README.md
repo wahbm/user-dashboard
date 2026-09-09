@@ -95,13 +95,15 @@ Authorization: Bearer {token}
 
 当前部署目标为阿里云 ECS 公网 IP 的 HTTP 路径：
 
-- 访问地址：<http://8.130.116.192/ww/user-dashboard/>
+- 访问地址：<https://8.130.116.192/ww/user-dashboard/>
 - GitHub 仓库：<https://github.com/wahbm/user-dashboard>
 - 发布分支：`main`；推送到 `main` 或手动触发工作流会自动部署
 - 部署目录：`/var/www/ww/user-dashboard`
 - Node 服务：`user-dashboard.service`，监听 `127.0.0.1:3100`
 - Nginx：将 `/ww/user-dashboard/` 反向代理到 Node 服务，并保留 SPA 深链接
 - 生产环境变量：`/var/www/ww/user-dashboard/shared/app.env`
+
+当前不绑定域名，访问使用 ECS 稳定公网 IP 上已有的 HTTPS 证书；后续如更换域名，需要重新配置 Nginx 和证书。
 
 生产环境复用 ECS 上的原生共享 MariaDB，使用独立的 `user_dashboard` schema 和本机最小权限账号 `user_dashboard_app`。MariaDB 仅绑定本机，3306 不对公网开放。数据库凭据只放在 ECS 环境文件中，不提交到仓库，也不会打包进发布包。
 
