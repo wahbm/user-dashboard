@@ -2,6 +2,8 @@
 
 基于 React + Express + MariaDB 的后台用户管理系统，覆盖需求文档中定义的管理员登录和用户管理功能。
 
+面向后续 AI 接手的上下文见：[AGENTS.md](AGENTS.md)、[项目上下文](docs/PROJECT_CONTEXT.md)、[架构说明](docs/ARCHITECTURE.md) 和 [TODO](docs/TODO.md)。
+
 ## 默认管理员
 
 - 用户名：`admin`
@@ -93,7 +95,7 @@ Authorization: Bearer {token}
 
 ## 阿里云 ECS 部署
 
-当前部署目标为阿里云 ECS 公网 IP 的 HTTP 路径：
+当前部署目标为阿里云 ECS 公网 IP 的 HTTPS 路径：
 
 - 访问地址：<https://8.130.116.192/ww/user-dashboard/>
 - GitHub 仓库：<https://github.com/wahbm/user-dashboard>
