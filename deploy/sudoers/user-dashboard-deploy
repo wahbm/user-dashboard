@@ -1,0 +1,2 @@
+# Validate with visudo -cf before installing as /etc/sudoers.d/user-dashboard-deploy.
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart user-dashboard.service

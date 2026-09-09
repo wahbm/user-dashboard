@@ -1,0 +1,211 @@
+name: Build and deploy user dashboard
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: user-dashboard-ecs-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  BASE_PATH: /ww/user-dashboard/
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production application
+        env:
+          VITE_BASE_PATH: ${{ env.BASE_PATH }}
+        run: npm run build
+
+      - name: Assemble Linux runtime bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_dir="$RUNNER_TEMP/user-dashboard-runtime"
+          install -d -m 0755 "$runtime_dir"
+          npm prune --omit=dev
+          cp package.json package-lock.json "$runtime_dir/"
+          install -d -m 0755 "$runtime_dir/client" "$runtime_dir/server" "$runtime_dir/shared"
+          cp -a client/dist "$runtime_dir/client/dist"
+          cp -a server/dist server/sql server/package.json "$runtime_dir/server/"
+          cp -a shared/dist shared/package.json "$runtime_dir/shared/"
+          cp -a node_modules "$runtime_dir/node_modules"
+
+          test -f "$runtime_dir/client/dist/index.html"
+          test -f "$runtime_dir/server/dist/index.js"
+          test -f "$runtime_dir/server/sql/001_init.sql"
+          test -d "$runtime_dir/node_modules"
+          tar -C "$runtime_dir" -czf "$RUNNER_TEMP/user-dashboard-release.tar.gz" .
+          tar -tzf "$RUNNER_TEMP/user-dashboard-release.tar.gz" >/dev/null
+
+      - name: Upload runtime bundle
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-dashboard-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/user-dashboard-release.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy immutable release to ECS
+    if: >-
+      github.repository == 'wahbm/user-dashboard' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      APP_PORT: ${{ vars.APP_PORT }}
+      PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+    steps:
+      - name: Check out deployment files
+        uses: actions/checkout@v4
+
+      - name: Download verified runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: user-dashboard-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/artifact
+
+      - name: Validate deployment contract
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?DEPLOY_HOST is required}"
+          : "${DEPLOY_PORT:?DEPLOY_PORT is required}"
+          : "${DEPLOY_USER:?DEPLOY_USER is required}"
+          : "${DEPLOY_KNOWN_HOSTS:?DEPLOY_KNOWN_HOSTS is required}"
+          : "${DEPLOY_PATH:?DEPLOY_PATH is required}"
+          : "${APP_PORT:?APP_PORT is required}"
+          : "${PUBLIC_URL:?PUBLIC_URL is required}"
+          : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY is required}"
+          [[ "$DEPLOY_PATH" == '/var/www/ww/user-dashboard' ]]
+          [[ "$APP_PORT" == '3100' ]]
+          [[ "$PUBLIC_URL" == "http://$DEPLOY_HOST/ww/user-dashboard/" ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] && (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
+          test -s "$RUNNER_TEMP/artifact/user-dashboard-release.tar.gz"
+          bash -n deploy/activate-release.sh
+
+      - name: Configure strict SSH client
+        id: ssh
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          ssh_dir="$RUNNER_TEMP/user-dashboard-ssh"
+          install -d -m 0700 "$ssh_dir"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$ssh_dir/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 0600 "$ssh_dir/id_ed25519" "$ssh_dir/known_hosts"
+          ssh-keygen -y -f "$ssh_dir/id_ed25519" >/dev/null
+
+          known_host_lookup="$DEPLOY_HOST"
+          if [[ "$DEPLOY_PORT" != '22' ]]; then
+            known_host_lookup="[$DEPLOY_HOST]:$DEPLOY_PORT"
+          fi
+          ssh-keygen -F "$known_host_lookup" -f "$ssh_dir/known_hosts" >/dev/null
+
+          echo "key=$ssh_dir/id_ed25519" >> "$GITHUB_OUTPUT"
+          echo "known_hosts=$ssh_dir/known_hosts" >> "$GITHUB_OUTPUT"
+
+      - name: Upload and activate release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          local_artifact="$RUNNER_TEMP/user-dashboard-$release_id.tar.gz"
+          local_script="$RUNNER_TEMP/activate-$release_id.sh"
+          cp "$RUNNER_TEMP/artifact/user-dashboard-release.tar.gz" "$local_artifact"
+          cp deploy/activate-release.sh "$local_script"
+          chmod 0700 "$local_script"
+
+          ssh_options=(
+            -i "${{ steps.ssh.outputs.key }}"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${{ steps.ssh.outputs.known_hosts }}"
+            -o ConnectTimeout=15
+          )
+          scp_options=(
+            -i "${{ steps.ssh.outputs.key }}"
+            -P "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${{ steps.ssh.outputs.known_hosts }}"
+            -o ConnectTimeout=15
+          )
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh "${ssh_options[@]}" "$remote" "test -d '$DEPLOY_PATH/incoming' && test -w '$DEPLOY_PATH/incoming'"
+          remote_arch="$(ssh "${ssh_options[@]}" "$remote" 'uname -m')"
+          [[ "$remote_arch" == 'x86_64' ]]
+          scp "${scp_options[@]}" "$local_artifact" "$local_script" "$remote:$DEPLOY_PATH/incoming/"
+          ssh "${ssh_options[@]}" "$remote" "bash '$DEPLOY_PATH/incoming/activate-$release_id.sh' '$DEPLOY_PATH' '$release_id'"
+
+      - name: Verify public HTTP endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_base="${PUBLIC_URL%/}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 "$PUBLIC_URL" >/dev/null
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 "$public_base/login" >/dev/null
+          response="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 \
+            -H 'content-type: application/json' -d '{}' "$public_base/api/login")"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            process.exit(value?.code === 1001 ? 0 : 1);
+          ' "$response"
+
+      - name: Remove runner SSH material
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_dir="$RUNNER_TEMP/user-dashboard-ssh"
+          if [[ -d "$ssh_dir" && ! -L "$ssh_dir" ]]; then
+            find "$ssh_dir" -mindepth 1 -maxdepth 1 -type f -delete
+            rmdir "$ssh_dir"
+          fi

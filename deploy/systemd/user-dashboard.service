@@ -1,0 +1,40 @@
+[Unit]
+Description=后台用户管理系统 Node.js service
+Wants=network-online.target
+After=network-online.target mariadb.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/ww/user-dashboard/current
+EnvironmentFile=/var/www/ww/user-dashboard/shared/app.env
+ExecStartPre=/usr/bin/test -f /var/www/ww/user-dashboard/current/server/dist/index.js
+ExecStart=/usr/bin/node /var/www/ww/user-dashboard/current/server/dist/index.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
