@@ -191,6 +191,12 @@ jobs:
             --connect-timeout 10 --max-time 30 "$PUBLIC_URL" >/dev/null
           curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
             --connect-timeout 10 --max-time 30 "$public_base/login" >/dev/null
+          openapi_response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 "$public_base/api-docs/openapi.json")"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            process.exit(value?.openapi === "3.0.3" && Boolean(value?.paths?.["/api/login"]) ? 0 : 1);
+          ' "$openapi_response"
           response="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
             --connect-timeout 10 --max-time 30 \
             -H 'content-type: application/json' -d '{}' "$public_base/api/login")"

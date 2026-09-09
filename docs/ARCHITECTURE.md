@@ -20,6 +20,8 @@
 
 ## 后端与接口
 
+Swagger UI 挂载在 `/api-docs/`，OpenAPI JSON 位于 `/api-docs/openapi.json`，两者不经过管理员鉴权。文档接口根据 Nginx 注入的 `X-Forwarded-Prefix` 生成当前公网服务地址，因此线上入口为 `/ww/user-dashboard/api-docs/`；本地开发入口为 `/api-docs/`。Swagger 只描述接口，不改变业务路由。
+
 Express 路由约定如下：
 
 | 方法 | 路径 | 作用 | 鉴权 |

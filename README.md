@@ -93,6 +93,14 @@ Authorization: Bearer {token}
 
 所有接口返回统一的 `code`、`message`、`data` 结构。用户 ID 从 `10001` 开始，密码重置为 `Aa123456`。
 
+## Swagger 在线接口文档
+
+- 线上文档：<https://8.130.116.192/ww/user-dashboard/api-docs/>
+- OpenAPI JSON：<https://8.130.116.192/ww/user-dashboard/api-docs/openapi.json>
+- 本地文档：<http://127.0.0.1:3000/api-docs/>
+
+文档页无需登录；调用受保护接口前，先调用登录接口取得 Token，再在 Swagger UI 的 `Authorize` 中填入 Token。文档会根据当前访问路径自动生成本地或 ECS 的 API 服务地址。
+
 ## 阿里云 ECS 部署
 
 当前部署目标为阿里云 ECS 公网 IP 的 HTTPS 路径：

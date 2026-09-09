@@ -2,6 +2,7 @@ import path from 'node:path';
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
+import swaggerUi from 'swagger-ui-express';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type {
   CreateUserData,
@@ -18,6 +19,7 @@ import { authenticate, createSession, hashPassword, revokeSession, verifyPasswor
 import { getPool, isDuplicateEntryError, withTransaction } from './db';
 import { sendFailure, sendSuccess } from './response';
 import { AuthenticatedRequest } from './types';
+import { createOpenApiDocument, getOpenApiServerUrl } from './openapi';
 import {
   createUserSchema,
   loginSchema,
@@ -66,6 +68,21 @@ const asyncHandler = (handler: (req: Request, res: Response, next: NextFunction)
   (req, res, next) => {
     void handler(req, res, next).catch(next);
   };
+
+app.get('/api-docs/openapi.json', (req, res) => {
+  res.json(createOpenApiDocument(getOpenApiServerUrl(req)));
+});
+
+app.use(
+  '/api-docs',
+  ...swaggerUi.serve,
+  swaggerUi.setup(null, {
+    customSiteTitle: '后台用户管理系统 API 文档',
+    swaggerOptions: {
+      url: './openapi.json'
+    }
+  })
+);
 
 function duplicateUserError(error: unknown): BusinessError {
   const message = error instanceof Error ? error.message : '';

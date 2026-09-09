@@ -14,7 +14,7 @@
 ## 技术栈
 
 - 前端：React 19、TypeScript、Vite 6、Ant Design 5、Axios、React Router DOM 7。
-- 后端：Node.js、Express、TypeScript、Zod、`mysql2/promise`、`bcryptjs`、`dotenv`、CORS。
+- 后端：Node.js、Express、TypeScript、Zod、`mysql2/promise`、`bcryptjs`、`dotenv`、CORS、`swagger-ui-express`。
 - 数据库：MariaDB 10.11，`utf8mb4`，独立 schema `user_dashboard`。
 - 部署：GitHub Actions、阿里云 ECS、Nginx、systemd；应用发布采用不可变 release + `current` symlink，失败回滚到上一版本。
 
@@ -34,6 +34,7 @@ docs/                   AI 接手所需的项目、架构和 TODO 文档
 
 - `/login`：管理员登录、表单校验、Token 保存和失效跳转。
 - `/user/list`：用户名模糊查询、手机号精确查询、状态筛选、10/20/50 分页、新增、编辑、状态切换、重置密码、退出登录。
+- `/api-docs/`：OpenAPI 3.0.3 Swagger UI；线上位于 `/ww/user-dashboard/api-docs/`，支持用登录 Token 调试受保护接口。
 - API：`POST /api/login`、`GET/POST /api/users`、`PUT/PATCH /api/users/{id}`、`POST /api/users/{id}/reset-password`、`POST /api/logout`。
 - 认证：Token 为随机 opaque token，数据库只保存 SHA-256 摘要；支持 24 小时默认过期和服务端吊销。
 - 数据：`admin_accounts`、`users`、`admin_sessions`；管理员与普通用户隔离，用户 ID 从 `10001` 自增。
