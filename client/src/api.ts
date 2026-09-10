@@ -27,6 +27,10 @@ const http: AxiosInstance = axios.create({
   }
 });
 
+function mutationConfig(idempotencyKey: string) {
+  return { headers: { 'Idempotency-Key': idempotencyKey } };
+}
+
 http.interceptors.request.use((request) => {
   const token = getToken();
   if (token) {
@@ -84,20 +88,24 @@ export function listUsers(params: UserListParams): Promise<UserListData> {
   return unwrap<UserListData>(http.get('/users', { params }));
 }
 
-export function createUser(payload: CreateUserRequest): Promise<CreateUserData> {
-  return unwrap<CreateUserData>(http.post('/users', payload));
+export function createUser(payload: CreateUserRequest, idempotencyKey: string): Promise<CreateUserData> {
+  return unwrap<CreateUserData>(http.post('/users', payload, mutationConfig(idempotencyKey)));
 }
 
-export function updateUser(id: number, payload: UpdateUserRequest): Promise<null> {
-  return unwrap<null>(http.put(`/users/${id}`, payload));
+export function updateUser(id: number, payload: UpdateUserRequest, idempotencyKey: string): Promise<null> {
+  return unwrap<null>(http.put(`/users/${id}`, payload, mutationConfig(idempotencyKey)));
 }
 
-export function updateUserStatus(id: number, payload: UpdateUserStatusRequest): Promise<null> {
-  return unwrap<null>(http.patch(`/users/${id}/status`, payload));
+export function updateUserStatus(
+  id: number,
+  payload: UpdateUserStatusRequest,
+  idempotencyKey: string
+): Promise<null> {
+  return unwrap<null>(http.patch(`/users/${id}/status`, payload, mutationConfig(idempotencyKey)));
 }
 
-export function resetUserPassword(id: number): Promise<null> {
-  return unwrap<null>(http.post(`/users/${id}/reset-password`));
+export function resetUserPassword(id: number, idempotencyKey: string): Promise<null> {
+  return unwrap<null>(http.post(`/users/${id}/reset-password`, undefined, mutationConfig(idempotencyKey)));
 }
 
 export function logout(): Promise<null> {

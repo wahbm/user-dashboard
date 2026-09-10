@@ -3,6 +3,14 @@ import type { Request } from 'express';
 type Schema = Record<string, unknown>;
 type Example = Record<string, unknown>;
 
+const idempotencyKeyParameter: Schema = {
+  name: 'Idempotency-Key',
+  in: 'header',
+  required: true,
+  description: '本次写操作的唯一请求 ID。同一 key 重试同一请求会回放原响应。',
+  schema: { type: 'string', minLength: 1, maxLength: 128 }
+};
+
 function apiResponseSchema(data: Schema): Schema {
   return {
     type: 'object',
@@ -193,6 +201,7 @@ export function createOpenApiDocument(serverUrl: string): Schema {
           summary: '新增用户',
           operationId: 'createUser',
           security: bearerSecurity(),
+          parameters: [idempotencyKeyParameter],
           requestBody: {
             required: true,
             content: {
@@ -245,7 +254,8 @@ export function createOpenApiDocument(serverUrl: string): Schema {
               required: true,
               schema: { type: 'integer', minimum: 1 },
               description: '用户 ID'
-            }
+            },
+            idempotencyKeyParameter
           ],
           requestBody: {
             required: true,
@@ -296,7 +306,8 @@ export function createOpenApiDocument(serverUrl: string): Schema {
               required: true,
               schema: { type: 'integer', minimum: 1 },
               description: '用户 ID'
-            }
+            },
+            idempotencyKeyParameter
           ],
           requestBody: {
             required: true,
@@ -338,7 +349,8 @@ export function createOpenApiDocument(serverUrl: string): Schema {
               required: true,
               schema: { type: 'integer', minimum: 1 },
               description: '用户 ID'
-            }
+            },
+            idempotencyKeyParameter
           ],
           responses: {
             '200': apiResponse(

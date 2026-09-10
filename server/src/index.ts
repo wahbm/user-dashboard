@@ -20,6 +20,7 @@ import { getPool, isDuplicateEntryError, withTransaction } from './db';
 import { sendFailure, sendSuccess } from './response';
 import { AuthenticatedRequest } from './types';
 import { createOpenApiDocument, getOpenApiServerUrl } from './openapi';
+import { idempotencyMiddleware } from './idempotency';
 import {
   createUserSchema,
   loginSchema,
@@ -134,6 +135,7 @@ app.post('/api/login', asyncHandler(async (req, res) => {
 }));
 
 app.use('/api', authenticate);
+app.use('/api', idempotencyMiddleware);
 
 app.get('/api/users', asyncHandler(async (req, res) => {
   const query = parseUserListQuery(req.query as Record<string, unknown>);

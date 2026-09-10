@@ -6,6 +6,7 @@
 
 - 默认管理员必须是 `admin / 123456`；`admin / admin123` 不是本项目默认凭据。管理员存于 `admin_accounts`，不能出现在普通用户列表中。
 - 保持接口路径、统一响应结构、业务码和鉴权约定；详见 `docs/ARCHITECTURE.md`。
+- 除登录和退出登录外的受保护写接口必须携带 `Idempotency-Key`；同一 key 不得复用到不同请求，服务端幂等记录由迁移脚本维护。
 - 用户 ID 从 `10001` 起，用户名和手机号唯一，列表按创建时间倒序；重置密码固定为 `Aa123456`，除非需求明确变更。
 - 前端部署前缀当前为 `/ww/user-dashboard/`，必须同时与 Vite、React Router、Axios 和 Nginx 配置保持一致。
 - 生产 Node 服务仅监听 `127.0.0.1:3100`，MariaDB 仅本机访问；不要把 3306、数据库密码、SSH 私钥或 Actions secret 写入仓库。

@@ -40,3 +40,20 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
     FOREIGN KEY (admin_id) REFERENCES admin_accounts (id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS admin_idempotency_keys (
+  admin_id BIGINT UNSIGNED NOT NULL,
+  idempotency_key VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  response_status SMALLINT NULL,
+  response_body JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  expires_at DATETIME NOT NULL,
+  PRIMARY KEY (admin_id, idempotency_key),
+  KEY idx_admin_idempotency_expires (expires_at),
+  CONSTRAINT fk_admin_idempotency_admin
+    FOREIGN KEY (admin_id) REFERENCES admin_accounts (id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

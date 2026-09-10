@@ -22,6 +22,8 @@
 
 Swagger UI 挂载在 `/api-docs/`，OpenAPI JSON 位于 `/api-docs/openapi.json`，两者不经过管理员鉴权。文档接口根据 Nginx 注入的 `X-Forwarded-Prefix` 生成当前公网服务地址，因此线上入口为 `/ww/user-dashboard/api-docs/`；本地开发入口为 `/api-docs/`。Swagger 只描述接口，不改变业务路由。
 
+除登录和退出登录外的受保护 `POST`、`PUT`、`PATCH` 写接口要求 `Idempotency-Key` 请求头。服务端在 `admin_idempotency_keys` 中按管理员、请求 key、请求摘要保存处理中/已完成状态；相同请求重试会回放原 HTTP 状态和响应体，不同请求复用同一 key 会返回 `1001`。
+
 Express 路由约定如下：
 
 | 方法 | 路径 | 作用 | 鉴权 |
@@ -41,6 +43,7 @@ Express 路由约定如下：
 - `admin_accounts`：管理员账号和 bcrypt 密码哈希；不参与普通用户查询。
 - `users`：普通用户资料、状态和创建时间；`id` 从 `10001` 开始，用户名/手机号有唯一约束。
 - `admin_sessions`：Token SHA-256 摘要、过期时间、吊销时间和管理员关联；原始 Token 只返回给登录客户端。
+- `admin_idempotency_keys`：受保护写操作的请求 key、请求摘要和响应回放记录；记录保留 24 小时。
 - `server/src/migrate.ts` 负责幂等初始化。修改表结构时必须考虑既有数据、重复执行和线上发布顺序。
 
 ## 发布链路

@@ -91,6 +91,8 @@ VITE_BASE_PATH=/ww/user-dashboard/ npm run build
 Authorization: Bearer {token}
 ```
 
+除登录和退出登录接口外，所有受保护写操作还必须携带唯一的 `Idempotency-Key` 请求头。相同管理员使用相同 key 和相同请求重试时，服务端会回放第一次响应；同一 key 用于不同请求会返回参数错误。
+
 所有接口返回统一的 `code`、`message`、`data` 结构。用户 ID 从 `10001` 开始，密码重置为 `Aa123456`。
 
 ## Swagger 在线接口文档

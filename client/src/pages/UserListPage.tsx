@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -32,6 +32,7 @@ import {
   updateUser,
   updateUserStatus
 } from '../api';
+import { createIdempotencyKey } from '../idempotency';
 
 interface SearchValues {
   username?: string;
@@ -95,9 +96,15 @@ export function UserListPage() {
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
   const [filters, setFilters] = useState<SearchValues>({});
   const [loading, setLoading] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
+  const createKeyRef = useRef<string | null>(null);
+  const editKeyRef = useRef<string | null>(null);
+  const createSubmittingRef = useRef(false);
+  const editSubmittingRef = useRef(false);
 
   const loadData = useCallback(async (nextPage: number, nextPageSize: 10 | 20 | 50, nextFilters: SearchValues) => {
     setLoading(true);
@@ -149,10 +156,14 @@ export function UserListPage() {
   const openCreate = () => {
     createForm.resetFields();
     createForm.setFieldsValue({ status: 1 });
+    createKeyRef.current = createIdempotencyKey();
     setCreateOpen(true);
   };
 
   const closeCreate = () => {
+    createSubmittingRef.current = false;
+    setCreateSubmitting(false);
+    createKeyRef.current = null;
     setCreateOpen(false);
     createForm.resetFields();
   };
@@ -160,35 +171,60 @@ export function UserListPage() {
   const openEdit = (record: UserListItem) => {
     setEditingUser(record);
     editForm.setFieldsValue({ name: record.name, mobile: record.mobile, email: record.email });
+    editKeyRef.current = createIdempotencyKey();
     setEditOpen(true);
   };
 
   const closeEdit = () => {
+    editSubmittingRef.current = false;
+    setEditSubmitting(false);
+    editKeyRef.current = null;
     setEditOpen(false);
     setEditingUser(null);
     editForm.resetFields();
   };
 
   const handleCreate = async (values: CreateFormValues) => {
+    if (createSubmittingRef.current) return;
+    createSubmittingRef.current = true;
+    setCreateSubmitting(true);
     try {
-      await createUser(values);
+      const idempotencyKey = createKeyRef.current ?? createIdempotencyKey();
+      createKeyRef.current = idempotencyKey;
+      await createUser(values, idempotencyKey);
       message.success('新增成功');
       closeCreate();
       await loadData(1, pageSize, filters);
     } catch (error) {
       showApiError(error);
+      if (error instanceof ApiError) {
+        createKeyRef.current = null;
+      }
+    } finally {
+      createSubmittingRef.current = false;
+      setCreateSubmitting(false);
     }
   };
 
   const handleEdit = async (values: EditFormValues) => {
-    if (!editingUser) return;
+    if (!editingUser || editSubmittingRef.current) return;
+    editSubmittingRef.current = true;
+    setEditSubmitting(true);
     try {
-      await updateUser(editingUser.id, values);
+      const idempotencyKey = editKeyRef.current ?? createIdempotencyKey();
+      editKeyRef.current = idempotencyKey;
+      await updateUser(editingUser.id, values, idempotencyKey);
       message.success('修改成功');
       closeEdit();
       await loadData(page, pageSize, filters);
     } catch (error) {
       showApiError(error);
+      if (error instanceof ApiError) {
+        editKeyRef.current = null;
+      }
+    } finally {
+      editSubmittingRef.current = false;
+      setEditSubmitting(false);
     }
   };
 
@@ -202,7 +238,7 @@ export function UserListPage() {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await updateUserStatus(record.id, { status: nextStatus });
+          await updateUserStatus(record.id, { status: nextStatus }, createIdempotencyKey());
           message.success(`${actionText}成功`);
           await loadData(page, pageSize, filters);
         } catch (error) {
@@ -220,7 +256,7 @@ export function UserListPage() {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await resetUserPassword(record.id);
+          await resetUserPassword(record.id, createIdempotencyKey());
           message.success('密码重置成功');
         } catch (error) {
           showApiError(error);
@@ -336,7 +372,15 @@ export function UserListPage() {
         </div>
       </Card>
 
-      <Modal title="新增用户" open={createOpen} onCancel={closeCreate} footer={null} destroyOnClose>
+      <Modal
+        title="新增用户"
+        open={createOpen}
+        onCancel={closeCreate}
+        closable={!createSubmitting}
+        maskClosable={!createSubmitting}
+        footer={null}
+        destroyOnClose
+      >
         <Form form={createForm} layout="vertical" onFinish={handleCreate} className="modal-form">
           <Form.Item label="用户名" name="username" rules={userFieldRules()}>
             <Input placeholder="4～20位英文、数字、下划线" />
@@ -357,13 +401,21 @@ export function UserListPage() {
             <Select options={[{ value: 1, label: '启用' }, { value: 0, label: '禁用' }]} />
           </Form.Item>
           <div className="modal-actions">
-            <Button onClick={closeCreate}>取消</Button>
-            <Button type="primary" htmlType="submit">确定</Button>
+            <Button onClick={closeCreate} disabled={createSubmitting}>取消</Button>
+            <Button type="primary" htmlType="submit" loading={createSubmitting}>确定</Button>
           </div>
         </Form>
       </Modal>
 
-      <Modal title="编辑用户" open={editOpen} onCancel={closeEdit} footer={null} destroyOnClose>
+      <Modal
+        title="编辑用户"
+        open={editOpen}
+        onCancel={closeEdit}
+        closable={!editSubmitting}
+        maskClosable={!editSubmitting}
+        footer={null}
+        destroyOnClose
+      >
         <Form form={editForm} layout="vertical" onFinish={handleEdit} className="modal-form">
           <Row gutter={16}>
             <Col span={12}>
@@ -384,8 +436,8 @@ export function UserListPage() {
             <Input placeholder="选填，例如 test@example.com" />
           </Form.Item>
           <div className="modal-actions">
-            <Button onClick={closeEdit}>取消</Button>
-            <Button type="primary" htmlType="submit">确定</Button>
+            <Button onClick={closeEdit} disabled={editSubmitting}>取消</Button>
+            <Button type="primary" htmlType="submit" loading={editSubmitting}>确定</Button>
           </div>
         </Form>
       </Modal>
